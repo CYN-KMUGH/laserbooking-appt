@@ -134,7 +134,29 @@
   }
   .delete-btn:hover { color: var(--red); background: var(--red-light); }
 
-  .week-nav  { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .cal-topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .therapist-filter { font-size: 13px; padding: 5px 10px; flex: 1; max-width: 160px; }
+  .view-toggle { display: flex; border: 0.5px solid var(--border2); border-radius: var(--radius); overflow: hidden; flex-shrink: 0; }
+  .view-toggle button { padding: 5px 14px; font-size: 13px; border: none; background: var(--surface); color: var(--text2); cursor: pointer; transition: background 0.1s; }
+  .view-toggle button.active { background: var(--blue); color: #fff; }
+
+  .month-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border-radius: var(--radius); overflow: hidden; min-width: 300px; }
+  .month-header { background: var(--surface2); padding: 7px 4px; text-align: center; font-weight: 500; color: var(--text2); font-size: 11px; }
+  .month-day { background: var(--surface); padding: 6px 8px; min-height: 68px; cursor: pointer; transition: background 0.1s; }
+  .month-day:hover { background: var(--blue-light); }
+  .month-day.other-month { opacity: 0.35; pointer-events: none; }
+  .month-day.today { background: var(--blue-light); }
+  .month-day-num { font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 5px; }
+  .month-day.today .month-day-num { color: var(--blue); }
+  .month-dots { display: flex; flex-wrap: wrap; gap: 3px; }
+  .month-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .booking-chip.dimmed { opacity: 0.2; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); white-space: nowrap; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  .week-nav  { display: flex; align-items: center; gap: 10px; }
   .week-label { font-size: 14px; font-weight: 500; flex: 1; text-align: center; }
 
   .calendar-wrap { overflow-x: auto; }
@@ -221,6 +243,32 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius-lg);
+    padding: 24px; width: 100%; max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  }
+  .modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 18px; }
+  .modal .form-row { flex-direction: column; gap: 12px; }
+  .modal .form-group { min-width: unset; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .icon-btn {
+    background: none; border: none; color: var(--text3);
+    cursor: pointer; font-size: 13px; padding: 3px 6px;
+    border-radius: 4px; transition: color 0.1s, background 0.1s;
+  }
+  .icon-btn:hover { color: var(--blue); background: var(--blue-light); }
+
+  .search-wrap { position: relative; margin-bottom: 10px; }
+  .search-wrap input { padding-left: 28px; }
+  .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 13px; pointer-events: none; }
+
   @media (max-width: 640px) {
     header { padding: 12px 14px; }
     .container { padding: 12px; }
@@ -229,6 +277,42 @@
 </style>
 </head>
 <body>
+
+<div class="modal-overlay hidden" id="edit-modal">
+  <div class="modal">
+    <h3>編輯病患資料</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>病歷號（不可修改）</label>
+        <input type="text" id="edit-id" disabled />
+      </div>
+      <div class="form-group">
+        <label>姓名</label>
+        <input type="text" id="edit-name" placeholder="姓名" />
+      </div>
+      <div class="form-group">
+        <label>購買療程次數</label>
+        <input type="number" id="edit-sessions" min="1" max="99" />
+      </div>
+      <div class="form-group">
+        <label>負責治療師</label>
+        <select id="edit-therapist">
+          <option value="">請選擇治療師</option>
+          <option>黃雨潔</option><option>李慧君</option><option>朱悅寧</option>
+          <option>戴辰耘</option><option>柯驊珈</option><option>李怡靜</option>
+          <option>蔡怡珏</option><option>劉威麟</option><option>李彥成</option>
+          <option>陳浩</option><option>張哲諭</option><option>蔡宜珊</option>
+          <option>李彥蓉</option>
+        </select>
+      </div>
+    </div>
+    <div class="error-msg" id="edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEditModal()">取消</button>
+      <button class="btn btn-primary" id="btn-save-edit" onclick="saveEdit()">儲存</button>
+    </div>
+  </div>
+</div>
 
 <div class="loading-overlay" id="loading-overlay">
   <div class="spinner"></div>
@@ -284,6 +368,10 @@
     <div class="panel-left">
       <div class="section" style="height:100%;">
         <div class="section-title">病患列表 — 點選後安排預約</div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="搜尋姓名或病歷號…" oninput="setSearchQuery(this.value)" />
+        </div>
         <div id="patient-list"><div class="empty-hint">載入中…</div></div>
       </div>
     </div>
@@ -292,13 +380,28 @@
       <div class="section">
         <div class="section-title">預約時間表</div>
         <div class="selected-info" id="selected-info">請從左側選取病患後，點選空白格子安排預約</div>
-        <div class="week-nav">
-          <button class="btn btn-sm" onclick="prevWeek()">&#8249; 上週</button>
-          <div class="week-label" id="week-label"></div>
-          <button class="btn btn-sm" onclick="nextWeek()">下週 &#8250;</button>
+        <div class="cal-topbar">
+          <div class="view-toggle">
+            <button id="btn-week" class="active" onclick="setView('week')">週</button>
+            <button id="btn-month" onclick="setView('month')">月</button>
+          </div>
+          <select class="therapist-filter" id="therapist-filter" onchange="setTherapistFilter(this.value)">
+            <option value="">全部治療師</option>
+            <option>黃雨潔</option><option>李慧君</option><option>朱悅寧</option>
+            <option>戴辰耘</option><option>柯驊珈</option><option>李怡靜</option>
+            <option>蔡怡珏</option><option>劉威麟</option><option>李彥成</option>
+            <option>陳浩</option><option>張哲諭</option><option>蔡宜珊</option>
+            <option>李彥蓉</option>
+          </select>
+          <div class="week-nav" style="margin-bottom:0; flex:1; justify-content:flex-end;">
+            <button class="btn btn-sm" id="btn-prev" onclick="navPrev()">&#8249; 上週</button>
+            <div class="week-label" id="week-label"></div>
+            <button class="btn btn-sm" id="btn-next" onclick="navNext()">下週 &#8250;</button>
+          </div>
         </div>
+        <div class="legend" id="therapist-legend"></div>
         <div class="calendar-wrap">
-          <div class="calendar-grid" id="cal-grid"></div>
+          <div id="cal-grid"></div>
         </div>
       </div>
     </div>
@@ -322,11 +425,16 @@
 // ════════════════════════════════════════════════════════════
 const API = 'https://script.google.com/macros/s/AKfycbz5BdWNZoPDhI5w-sNI-1pKOVkSzl-92MaoBXLMs0wRHkfm-att0Immi5GwJ0Ujp4UQEQ/exec';
 
+const THERAPISTS = ['黃雨潔','李慧君','朱悅寧','戴辰耘','柯驊珈','李怡靜','蔡怡珏','劉威麟','李彥成','陳浩','張哲諭','蔡宜珊','李彥蓉'];
+const PALETTE    = ['#185FA5','#0F6E56','#8B4DB8','#C0392B','#E67E22','#16A085','#2980B9','#D35400','#7F8C8D','#6C3483','#B7950B','#CB4335','#1ABC9C'];
+const therapistColor = {};
+THERAPISTS.forEach((t, i) => therapistColor[t] = PALETTE[i]);
+
 const AM_SLOTS = ['8:00','8:30','9:00','9:30','10:00','10:30','11:00'];
 const PM_SLOTS = ['13:30','14:00','14:30','15:00','15:30','16:00','16:30'];
 const DAYS     = ['週一','週二','週三','週四','週五'];
 
-let patients = [], bookings = {}, selectedPatientId = null, weekOffset = 0;
+let patients = [], bookings = {}, selectedPatientId = null, weekOffset = 0, monthOffset = 0, viewMode = 'week', searchQuery = '', editingPatientId = null, therapistFilter = '';
 
 // ── Sync UI ────────────────────────────────────────────────
 function setSyncStatus(state, label) {
@@ -356,7 +464,7 @@ async function loadAll() {
     setSyncStatus('err', '連線失敗');
   }
   document.getElementById('loading-overlay').style.display = 'none';
-  renderPatients(); renderCalendar(); updateStats();
+  renderPatients(); renderCalendar(); updateStats(); renderLegend();
 }
 
 // ── 背景靜默同步（不擋 UI，不閃爍）──────────────────────────
@@ -442,6 +550,59 @@ async function deletePatient(id) {
   }
 }
 
+function openEditModal(id) {
+  const p = patients.find(x => x.id === id);
+  if (!p) return;
+  editingPatientId = id;
+  document.getElementById('edit-id').value = p.id;
+  document.getElementById('edit-name').value = p.name;
+  document.getElementById('edit-sessions').value = p.sessions;
+  document.getElementById('edit-therapist').value = p.therapist;
+  document.getElementById('edit-error').style.display = 'none';
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  editingPatientId = null;
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+async function saveEdit() {
+  const name      = document.getElementById('edit-name').value.trim();
+  const sessions  = parseInt(document.getElementById('edit-sessions').value) || 1;
+  const therapist = document.getElementById('edit-therapist').value;
+  const errEl     = document.getElementById('edit-error');
+
+  if (!name)      { errEl.textContent = '請填寫姓名';   errEl.style.display = 'block'; return; }
+  if (!therapist) { errEl.textContent = '請選擇治療師'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  const id  = editingPatientId;
+  const idx = patients.findIndex(x => x.id === id);
+  if (idx === -1) return;
+
+  const prev = { ...patients[idx] };
+  patients[idx] = { ...patients[idx], name, sessions, therapist };
+  renderPatients(); updateStats();
+  if (selectedPatientId === id) updateSelectedInfo();
+
+  document.getElementById('btn-save-edit').disabled = true;
+  setSyncStatus('loading', '儲存中…');
+
+  const res = await apiPost({ action: 'editPatient', id, name, sessions, therapist });
+
+  if (res.error) {
+    patients[idx] = prev;
+    renderPatients(); updateStats();
+    errEl.textContent = res.error; errEl.style.display = 'block';
+    setSyncStatus('err', '儲存失敗');
+  } else {
+    closeEditModal();
+    setSyncStatus('ok', '已同步');
+  }
+  document.getElementById('btn-save-edit').disabled = false;
+}
+
 function selectPatient(id) {
   selectedPatientId = id;
   renderPatients(); renderCalendar(); updateSelectedInfo();
@@ -450,8 +611,16 @@ function selectPatient(id) {
 // ── Render ─────────────────────────────────────────────────
 function renderPatients() {
   const el = document.getElementById('patient-list');
-  if (!patients.length) { el.innerHTML = '<div class="empty-hint">尚無病患資料<br>請先新增病患</div>'; return; }
-  el.innerHTML = patients.map(p => {
+  const list = searchQuery
+    ? patients.filter(p => p.name.toLowerCase().includes(searchQuery) || p.id.toLowerCase().includes(searchQuery))
+    : patients;
+  if (!list.length) {
+    el.innerHTML = patients.length
+      ? '<div class="empty-hint">找不到符合的病患</div>'
+      : '<div class="empty-hint">尚無病患資料<br>請先新增病患</div>';
+    return;
+  }
+  el.innerHTML = list.map(p => {
     const booked = Object.values(bookings).filter(v => v.patientId === p.id).length;
     const remain = p.sessions - booked;
     const sel    = selectedPatientId === p.id ? ' selected' : '';
@@ -459,11 +628,15 @@ function renderPatients() {
     return `<div class="patient-item${sel}" onclick="selectPatient('${esc(p.id)}')">
       <div class="patient-info">
         <div class="pname">${p.name}</div>
-        <div class="pdetail">${p.id} ｜ ${p.therapist}</div>
+        <div class="pdetail" style="display:flex;align-items:center;gap:4px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${therapistColor[p.therapist]||'#888'};flex-shrink:0;display:inline-block;"></span>
+            ${p.id} ｜ ${p.therapist}
+          </div>
       </div>
       <div class="badges">
         <span class="badge badge-blue">${p.sessions}次</span>
         <span class="badge ${bc}">剩${remain}</span>
+        <button class="icon-btn" title="編輯" onclick="event.stopPropagation();openEditModal('${esc(p.id)}')">✏️</button>
         <button class="delete-btn" onclick="event.stopPropagation();deletePatient('${esc(p.id)}')">✕</button>
       </div>
     </div>`;
@@ -471,6 +644,11 @@ function renderPatients() {
 }
 
 function renderCalendar() {
+  if (viewMode === 'week') renderWeek();
+  else renderMonth();
+}
+
+function renderWeek() {
   const monday = getMonday(weekOffset);
   const days   = Array.from({length: 5}, (_, i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d; });
   document.getElementById('week-label').textContent =
@@ -478,7 +656,7 @@ function renderCalendar() {
 
   const selPat = patients.find(x => x.id === selectedPatientId);
   const canAdd = selPat && canBookMore(selectedPatientId);
-  let html = '';
+  let html = '<div class="calendar-grid">';
 
   html += '<div class="cal-header"></div>';
   days.forEach((d, i) => {
@@ -498,7 +676,69 @@ function renderCalendar() {
     days.forEach(d => { html += buildCell(dateStr(d), slot, canAdd, selPat); });
   });
 
+  html += '</div>';
   document.getElementById('cal-grid').innerHTML = html;
+}
+
+function renderMonth() {
+  const today = new Date();
+  const ref   = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const year  = ref.getFullYear(), month = ref.getMonth();
+  document.getElementById('week-label').textContent = `${year}年 ${month + 1}月`;
+
+  const lastDay  = new Date(year, month + 1, 0);
+  const firstDay = new Date(year, month, 1);
+  const dow      = firstDay.getDay() === 0 ? 7 : firstDay.getDay();
+  const firstMon = new Date(firstDay);
+  firstMon.setDate(firstDay.getDate() - (dow - 1));
+
+  const todayStr = dateStr(today);
+  let html = '<div class="month-grid">';
+  DAYS.forEach(d => { html += `<div class="month-header">${d}</div>`; });
+
+  const cur = new Date(firstMon);
+  while (cur <= lastDay) {
+    for (let i = 0; i < 5; i++) {
+      const d    = new Date(cur);
+      d.setDate(cur.getDate() + i);
+      const dStr    = dateStr(d);
+      const inMonth = d.getMonth() === month;
+      const isToday = dStr === todayStr;
+      const cls = 'month-day' + (!inMonth ? ' other-month' : '') + (isToday ? ' today' : '');
+      const dots = Object.entries(bookings)
+        .filter(([k, v]) => k.startsWith(dStr + '|') && (!therapistFilter || v.therapist === therapistFilter))
+        .slice(0, 12)
+        .map(([, v]) => `<div class="month-dot" style="background:${therapistColor[v.therapist]||'#888'}" title="${v.therapist}"></div>`)
+        .join('');
+      html += `<div class="${cls}" onclick="jumpToWeek('${dStr}')">
+        <div class="month-day-num">${d.getDate()}</div>
+        <div class="month-dots">${dots}</div>
+      </div>`;
+    }
+    cur.setDate(cur.getDate() + 7);
+  }
+  html += '</div>';
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function setView(mode) {
+  viewMode = mode;
+  document.getElementById('btn-week').classList.toggle('active', mode === 'week');
+  document.getElementById('btn-month').classList.toggle('active', mode === 'month');
+  document.getElementById('btn-prev').textContent = mode === 'week' ? '‹ 上週' : '‹ 上月';
+  document.getElementById('btn-next').textContent = mode === 'week' ? '下週 ›' : '下月 ›';
+  renderCalendar();
+}
+
+function jumpToWeek(dStr) {
+  const d   = new Date(dStr);
+  const dow = d.getDay() === 0 ? 7 : d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow - 1));
+  mon.setHours(0, 0, 0, 0);
+  const thisMon = getMonday(0);
+  weekOffset = Math.round((mon - thisMon) / (7 * 86400000));
+  setView('week');
 }
 
 function buildCell(dStr, slot, canAdd, selPat) {
@@ -507,11 +747,14 @@ function buildCell(dStr, slot, canAdd, selPat) {
   if (bk) {
     const pat     = patients.find(x => x.id === bk.patientId);
     const pname   = pat ? pat.name.slice(0, 3) : bk.patientId;
-    const isMine  = bk.patientId === selectedPatientId;
-    const cellCls = (isMine ? 'cal-cell mine' : 'cal-cell booked') + (bk._pending ? ' pending' : '');
-    const chipCls = isMine ? 'booking-chip mine-chip' : 'booking-chip';
+    const isMine      = bk.patientId === selectedPatientId;
+    const matchFilter = !therapistFilter || bk.therapist === therapistFilter;
+    const color       = therapistColor[bk.therapist] || '#185FA5';
+    const cellCls     = (isMine ? 'cal-cell mine' : 'cal-cell booked') + (bk._pending ? ' pending' : '');
+    const chipCls     = 'booking-chip' + (matchFilter ? '' : ' dimmed');
+    const outline     = isMine ? 'box-shadow:0 0 0 2px #fff,0 0 0 3.5px ' + color + ';' : '';
     return `<div class="${cellCls}" title="${pat ? pat.name : bk.patientId} ／ ${bk.therapist}（${slot}）">
-      <div class="${chipCls}">
+      <div class="${chipCls}" style="background:${color};${outline}">
         <div class="chip-top"><span>${pname}</span><button class="chip-x" onclick="removeBooking('${esc(key)}')">✕</button></div>
         <div class="chip-therapist">${bk.therapist}</div>
       </div>
@@ -557,6 +800,12 @@ async function book(key) {
 
 // ── 取消預約（樂觀更新）────────────────────────────────────
 async function removeBooking(key) {
+  const bk  = bookings[key];
+  const pat = patients.find(x => x.id === bk?.patientId);
+  const [date, slot] = key.split('|');
+  const label = `${pat ? pat.name : bk?.patientId}｜${slot}（${date}）`;
+  if (!confirm(`確定要取消以下預約？\n\n${label}`)) return;
+
   const prev = bookings[key];
   delete bookings[key];
   renderCalendar(); updateSelectedInfo(); updateStats();
@@ -588,8 +837,15 @@ function updateSelectedInfo() {
      <span class="badge ${bc}">剩餘 ${remain} 次</span>`;
 }
 
-function prevWeek() { weekOffset--; renderCalendar(); }
-function nextWeek() { weekOffset++; renderCalendar(); }
+function setSearchQuery(q) { searchQuery = q.trim().toLowerCase(); renderPatients(); }
+function setTherapistFilter(val) { therapistFilter = val; renderCalendar(); }
+function renderLegend() {
+  document.getElementById('therapist-legend').innerHTML = THERAPISTS.map(t =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${therapistColor[t]}"></div>${t}</div>`
+  ).join('');
+}
+function navPrev() { if (viewMode === 'week') weekOffset--; else monthOffset--; renderCalendar(); }
+function navNext() { if (viewMode === 'week') weekOffset++; else monthOffset++; renderCalendar(); }
 
 function updateStats() {
   const total  = patients.reduce((a, p) => a + Number(p.sessions), 0);
@@ -610,12 +866,17 @@ function dateStr(d)    { return d.toISOString().slice(0, 10); }
 function formatDate(d) { return `${d.getMonth() + 1}/${d.getDate()}`; }
 function esc(s)        { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
+// ── 點擊彈窗背景關閉 ───────────────────────────────────────
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+
 // ── 背景每 30 秒靜默同步（不擋 UI）────────────────────────
 setInterval(silentSync, 30000);
 
 // ── Init ───────────────────────────────────────────────────
+setView('week');
 loadAll();
-renderCalendar();
 </script>
 </body>
 </html>
