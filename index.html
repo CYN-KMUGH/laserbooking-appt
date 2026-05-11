@@ -206,6 +206,7 @@
   }
   .booking-chip.mine-chip { background: var(--teal); }
   .chip-top       { display: flex; align-items: center; justify-content: space-between; gap: 3px; }
+  .chip-top span  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52px; }
   .chip-therapist { opacity: 0.85; font-size: 8.5px; }
   .chip-x {
     cursor: pointer; opacity: 0.75; font-size: 10px;
@@ -229,6 +230,16 @@
 
   .empty-hint { font-size: 13px; color: var(--text3); text-align: center; padding: 26px 12px; line-height: 1.7; }
   .error-msg  { font-size: 12px; color: var(--red); margin-top: 6px; display: none; }
+  .appt-list { list-style: none; margin-top: 12px; max-height: 320px; overflow-y: auto; }
+  .appt-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius); border: 0.5px solid var(--border); margin-bottom: 6px; font-size: 13px; }
+  .appt-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .appt-date { font-weight: 500; min-width: 80px; }
+  .appt-time { color: var(--text2); }
+  .appt-therapist { margin-left: auto; font-size: 11px; color: var(--text3); }
+
+  .split-row  { display: none; margin-top: 8px; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .split-row.visible { display: flex; }
+  .split-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
 
   .loading-overlay {
     position: fixed; inset: 0; background: rgba(245,244,240,0.92);
@@ -278,6 +289,16 @@
 </head>
 <body>
 
+<div class="modal-overlay hidden" id="appt-modal">
+  <div class="modal">
+    <h3 id="appt-modal-title">預約明細</h3>
+    <ul class="appt-list" id="appt-modal-list"></ul>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeApptModal()">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="edit-modal">
   <div class="modal">
     <h3>編輯病患資料</h3>
@@ -298,6 +319,29 @@
         <label>負責治療師</label>
         <select id="edit-therapist">
           <option value="">請選擇治療師</option>
+          <option>黃雨潔</option><option>李慧君</option><option>朱悅寧</option>
+          <option>戴辰耘</option><option>柯驊珈</option><option>李怡靜</option>
+          <option>蔡怡珏</option><option>劉威麟</option><option>李彥成</option>
+          <option>陳浩</option><option>張哲諭</option><option>蔡宜珊</option>
+          <option>李彥蓉</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:8px;align-items:center;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;">
+        <input type="checkbox" id="edit-split" onchange="toggleSplit('edit')" style="width:auto;accent-color:var(--blue);" />
+        分次預約（不同治療師）
+      </label>
+    </div>
+    <div class="split-row" id="edit-split-row">
+      <span class="split-label">前</span>
+      <div class="form-group" style="max-width:70px;">
+        <input type="number" id="edit-split-at" min="1" max="98" value="3" placeholder="次數" />
+      </div>
+      <span class="split-label">次由第一治療師，之後改由</span>
+      <div class="form-group" style="max-width:160px;">
+        <select id="edit-therapist2">
+          <option value="">請選擇第二治療師</option>
           <option>黃雨潔</option><option>李慧君</option><option>朱悅寧</option>
           <option>戴辰耘</option><option>柯驊珈</option><option>李怡靜</option>
           <option>蔡怡珏</option><option>劉威麟</option><option>李彥成</option>
@@ -361,13 +405,39 @@
       </div>
       <button class="btn btn-primary" id="btn-add" onclick="addPatient()">新增病患</button>
     </div>
+    <div class="form-row" style="margin-top:8px;align-items:center;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;">
+        <input type="checkbox" id="inp-split" onchange="toggleSplit('inp')" style="width:auto;accent-color:var(--blue);" />
+        分次預約（不同治療師）
+      </label>
+    </div>
+    <div class="split-row" id="inp-split-row">
+      <span class="split-label">前</span>
+      <div class="form-group" style="max-width:70px;">
+        <input type="number" id="inp-split-at" min="1" max="98" value="3" placeholder="次數" />
+      </div>
+      <span class="split-label">次由第一治療師，之後改由</span>
+      <div class="form-group" style="max-width:160px;">
+        <select id="inp-therapist2">
+          <option value="">請選擇第二治療師</option>
+          <option>黃雨潔</option><option>李慧君</option><option>朱悅寧</option>
+          <option>戴辰耘</option><option>柯驊珈</option><option>李怡靜</option>
+          <option>蔡怡珏</option><option>劉威麟</option><option>李彥成</option>
+          <option>陳浩</option><option>張哲諭</option><option>蔡宜珊</option>
+          <option>李彥蓉</option>
+        </select>
+      </div>
+    </div>
     <div class="error-msg" id="error-msg"></div>
   </div>
 
   <div class="main-grid">
     <div class="panel-left">
       <div class="section" style="height:100%;">
-        <div class="section-title">病患列表 — 點選後安排預約</div>
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+          病患列表 — 點選後安排預約
+          <button class="btn btn-sm" id="btn-hide-done" onclick="toggleHideCompleted()" style="font-size:11px;padding:3px 8px;">隱藏已完成</button>
+        </div>
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
           <input type="text" id="search-input" placeholder="搜尋姓名或病歷號…" oninput="setSearchQuery(this.value)" />
@@ -434,7 +504,7 @@ const AM_SLOTS = ['8:00','8:30','9:00','9:30','10:00','10:30','11:00'];
 const PM_SLOTS = ['13:30','14:00','14:30','15:00','15:30','16:00','16:30'];
 const DAYS     = ['週一','週二','週三','週四','週五'];
 
-let patients = [], bookings = {}, selectedPatientId = null, weekOffset = 0, monthOffset = 0, viewMode = 'week', searchQuery = '', editingPatientId = null, therapistFilter = '';
+let patients = [], bookings = {}, selectedPatientId = null, weekOffset = 0, monthOffset = 0, viewMode = 'week', searchQuery = '', editingPatientId = null, therapistFilter = '', hideCompleted = false;
 
 // ── Sync UI ────────────────────────────────────────────────
 function setSyncStatus(state, label) {
@@ -487,35 +557,40 @@ async function addPatient() {
   const name      = document.getElementById('inp-name').value.trim();
   const sessions  = parseInt(document.getElementById('inp-sessions').value) || 5;
   const therapist = document.getElementById('inp-therapist').value;
+  const isSplit   = document.getElementById('inp-split').checked;
+  const splitAt   = isSplit ? parseInt(document.getElementById('inp-split-at').value) || 0 : 0;
+  const therapist2= isSplit ? document.getElementById('inp-therapist2').value : '';
   const errEl     = document.getElementById('error-msg');
 
   if (!id || !name)  { errEl.textContent='請填寫病歷號與姓名'; errEl.style.display='block'; return; }
   if (!therapist)    { errEl.textContent='請選擇負責治療師';   errEl.style.display='block'; return; }
+  if (isSplit && !therapist2) { errEl.textContent='請選擇第二治療師'; errEl.style.display='block'; return; }
+  if (isSplit && (splitAt < 1 || splitAt >= sessions)) { errEl.textContent='切換次數需介於 1 到總次數之間'; errEl.style.display='block'; return; }
   errEl.style.display = 'none';
 
-  // ① 樂觀更新：先把新病患加進本地狀態，立即渲染
-  const newPatient = { id, name, sessions, therapist };
+  const newPatient = { id, name, sessions, therapist, ...(isSplit && { splitAt, therapist2 }) };
   patients.push(newPatient);
   renderPatients(); updateStats();
 
-  // 禁用按鈕，顯示儲存中
   document.getElementById('btn-add').disabled = true;
   setSyncStatus('loading', '儲存中…');
 
-  const res = await apiPost({ action: 'addPatient', id, name, sessions, therapist });
+  const res = await apiPost({ action: 'addPatient', id, name, sessions, therapist, splitAt: splitAt||'', therapist2: therapist2||'' });
 
   if (res.error) {
-    // ② 如果後端報錯，回滾本地狀態
     patients = patients.filter(p => p.id !== id);
     renderPatients(); updateStats();
     errEl.textContent = res.error; errEl.style.display = 'block';
     setSyncStatus('err', '儲存失敗');
   } else {
-    // ③ 成功：清空表單
     document.getElementById('inp-id').value = '';
     document.getElementById('inp-name').value = '';
     document.getElementById('inp-sessions').value = '5';
     document.getElementById('inp-therapist').value = '';
+    document.getElementById('inp-split').checked = false;
+    document.getElementById('inp-split-at').value = '3';
+    document.getElementById('inp-therapist2').value = '';
+    document.getElementById('inp-split-row').classList.remove('visible');
     setSyncStatus('ok', '已同步');
   }
   document.getElementById('btn-add').disabled = false;
@@ -558,6 +633,11 @@ function openEditModal(id) {
   document.getElementById('edit-name').value = p.name;
   document.getElementById('edit-sessions').value = p.sessions;
   document.getElementById('edit-therapist').value = p.therapist;
+  const hasSplit = !!(p.splitAt && p.therapist2);
+  document.getElementById('edit-split').checked = hasSplit;
+  document.getElementById('edit-split-at').value = p.splitAt || 3;
+  document.getElementById('edit-therapist2').value = p.therapist2 || '';
+  document.getElementById('edit-split-row').classList.toggle('visible', hasSplit);
   document.getElementById('edit-error').style.display = 'none';
   document.getElementById('edit-modal').classList.remove('hidden');
 }
@@ -568,13 +648,18 @@ function closeEditModal() {
 }
 
 async function saveEdit() {
-  const name      = document.getElementById('edit-name').value.trim();
-  const sessions  = parseInt(document.getElementById('edit-sessions').value) || 1;
-  const therapist = document.getElementById('edit-therapist').value;
-  const errEl     = document.getElementById('edit-error');
+  const name       = document.getElementById('edit-name').value.trim();
+  const sessions   = parseInt(document.getElementById('edit-sessions').value) || 1;
+  const therapist  = document.getElementById('edit-therapist').value;
+  const isSplit    = document.getElementById('edit-split').checked;
+  const splitAt    = isSplit ? parseInt(document.getElementById('edit-split-at').value) || 0 : 0;
+  const therapist2 = isSplit ? document.getElementById('edit-therapist2').value : '';
+  const errEl      = document.getElementById('edit-error');
 
   if (!name)      { errEl.textContent = '請填寫姓名';   errEl.style.display = 'block'; return; }
   if (!therapist) { errEl.textContent = '請選擇治療師'; errEl.style.display = 'block'; return; }
+  if (isSplit && !therapist2) { errEl.textContent = '請選擇第二治療師'; errEl.style.display = 'block'; return; }
+  if (isSplit && (splitAt < 1 || splitAt >= sessions)) { errEl.textContent = '切換次數需介於 1 到總次數之間'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
 
   const id  = editingPatientId;
@@ -582,14 +667,14 @@ async function saveEdit() {
   if (idx === -1) return;
 
   const prev = { ...patients[idx] };
-  patients[idx] = { ...patients[idx], name, sessions, therapist };
+  patients[idx] = { ...patients[idx], name, sessions, therapist, splitAt: splitAt||undefined, therapist2: therapist2||undefined };
   renderPatients(); updateStats();
   if (selectedPatientId === id) updateSelectedInfo();
 
   document.getElementById('btn-save-edit').disabled = true;
   setSyncStatus('loading', '儲存中…');
 
-  const res = await apiPost({ action: 'editPatient', id, name, sessions, therapist });
+  const res = await apiPost({ action: 'editPatient', id, name, sessions, therapist, splitAt: splitAt||'', therapist2: therapist2||'' });
 
   if (res.error) {
     patients[idx] = prev;
@@ -611,9 +696,15 @@ function selectPatient(id) {
 // ── Render ─────────────────────────────────────────────────
 function renderPatients() {
   const el = document.getElementById('patient-list');
-  const list = searchQuery
+  let list = searchQuery
     ? patients.filter(p => p.name.toLowerCase().includes(searchQuery) || p.id.toLowerCase().includes(searchQuery))
     : patients;
+  if (hideCompleted) {
+    list = list.filter(p => {
+      const booked = Object.values(bookings).filter(v => v.patientId === p.id).length;
+      return (p.sessions - booked) > 0;
+    });
+  }
   if (!list.length) {
     el.innerHTML = patients.length
       ? '<div class="empty-hint">找不到符合的病患</div>'
@@ -628,14 +719,15 @@ function renderPatients() {
     return `<div class="patient-item${sel}" onclick="selectPatient('${esc(p.id)}')">
       <div class="patient-info">
         <div class="pname">${p.name}</div>
-        <div class="pdetail" style="display:flex;align-items:center;gap:4px;">
+        <div class="pdetail" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
             <span style="width:8px;height:8px;border-radius:50%;background:${therapistColor[p.therapist]||'#888'};flex-shrink:0;display:inline-block;"></span>
-            ${p.id} ｜ ${p.therapist}
+            ${p.id} ｜ ${p.therapist}${p.splitAt ? ` (前${p.splitAt}次) → ${p.therapist2}` : ''}
           </div>
       </div>
       <div class="badges">
         <span class="badge badge-blue">${p.sessions}次</span>
         <span class="badge ${bc}">剩${remain}</span>
+        <button class="icon-btn" title="查看預約" onclick="event.stopPropagation();showAppts('${esc(p.id)}')">📋</button>
         <button class="icon-btn" title="編輯" onclick="event.stopPropagation();openEditModal('${esc(p.id)}')">✏️</button>
         <button class="delete-btn" onclick="event.stopPropagation();deletePatient('${esc(p.id)}')">✕</button>
       </div>
@@ -746,7 +838,7 @@ function buildCell(dStr, slot, canAdd, selPat) {
   const bk  = bookings[key];
   if (bk) {
     const pat     = patients.find(x => x.id === bk.patientId);
-    const pname   = pat ? pat.name.slice(0, 3) : bk.patientId;
+    const pname   = pat ? pat.name : bk.patientId;
     const isMine      = bk.patientId === selectedPatientId;
     const matchFilter = !therapistFilter || bk.therapist === therapistFilter;
     const color       = therapistColor[bk.therapist] || '#185FA5';
@@ -779,11 +871,12 @@ async function book(key) {
   const pat = patients.find(x => x.id === selectedPatientId);
 
   // 立即寫入本地 bookings（標記 _pending 顯示半透明）
-  bookings[key] = { patientId: selectedPatientId, therapist: pat.therapist, _pending: true };
+  const therapist = getTherapistForBooking(pat);
+  bookings[key] = { patientId: selectedPatientId, therapist, _pending: true };
   renderCalendar(); updateSelectedInfo(); updateStats();
   setSyncStatus('loading', '儲存中…');
 
-  const res = await apiPost({ action: 'addBooking', key, patientId: selectedPatientId, therapist: pat.therapist });
+  const res = await apiPost({ action: 'addBooking', key, patientId: selectedPatientId, therapist });
 
   if (res.error) {
     // 回滾
@@ -837,7 +930,61 @@ function updateSelectedInfo() {
      <span class="badge ${bc}">剩餘 ${remain} 次</span>`;
 }
 
+function showAppts(id) {
+  const p = patients.find(x => x.id === id);
+  if (!p) return;
+
+  const appts = Object.entries(bookings)
+    .filter(([, v]) => v.patientId === id)
+    .map(([key, v]) => { const [date, slot] = key.split('|'); return { date, slot, therapist: v.therapist }; })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot));
+
+  document.getElementById('appt-modal-title').textContent = `${p.name} 的預約明細（共 ${appts.length} 筆）`;
+
+  const weekdays = ['日','一','二','三','四','五','六'];
+  document.getElementById('appt-modal-list').innerHTML = appts.length
+    ? appts.map((a, i) => {
+        const d   = new Date(a.date);
+        const dow = weekdays[d.getDay()];
+        const color = therapistColor[a.therapist] || '#888';
+        return `<li class="appt-item">
+          <div class="appt-dot" style="background:${color}"></div>
+          <span style="font-size:11px;color:var(--text3);min-width:18px;">${i+1}.</span>
+          <span class="appt-date">${d.getMonth()+1}月${d.getDate()}日（${dow}）</span>
+          <span class="appt-time">${a.slot}</span>
+          <span class="appt-therapist">${a.therapist}</span>
+        </li>`;
+      }).join('')
+    : '<li style="padding:16px;text-align:center;color:var(--text3);font-size:13px;">尚無預約紀錄</li>';
+
+  document.getElementById('appt-modal').classList.remove('hidden');
+}
+
+function closeApptModal() {
+  document.getElementById('appt-modal').classList.add('hidden');
+}
+
+function toggleSplit(prefix) {
+  const checked = document.getElementById(prefix + '-split').checked;
+  document.getElementById(prefix + '-split-row').classList.toggle('visible', checked);
+}
+
+function getTherapistForBooking(pat) {
+  if (!pat.splitAt || !pat.therapist2) return pat.therapist;
+  const booked = Object.values(bookings).filter(v => v.patientId === pat.id).length;
+  return booked < Number(pat.splitAt) ? pat.therapist : pat.therapist2;
+}
+
 function setSearchQuery(q) { searchQuery = q.trim().toLowerCase(); renderPatients(); }
+function toggleHideCompleted() {
+  hideCompleted = !hideCompleted;
+  const btn = document.getElementById('btn-hide-done');
+  btn.textContent = hideCompleted ? '顯示已完成' : '隱藏已完成';
+  btn.style.background = hideCompleted ? 'var(--blue)' : '';
+  btn.style.color = hideCompleted ? '#fff' : '';
+  btn.style.borderColor = hideCompleted ? 'var(--blue)' : '';
+  renderPatients();
+}
 function setTherapistFilter(val) { therapistFilter = val; renderCalendar(); }
 function renderLegend() {
   document.getElementById('therapist-legend').innerHTML = THERAPISTS.map(t =>
@@ -869,6 +1016,9 @@ function esc(s)        { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "
 // ── 點擊彈窗背景關閉 ───────────────────────────────────────
 document.getElementById('edit-modal').addEventListener('click', function(e) {
   if (e.target === this) closeEditModal();
+});
+document.getElementById('appt-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeApptModal();
 });
 
 // ── 背景每 30 秒靜默同步（不擋 UI）────────────────────────
