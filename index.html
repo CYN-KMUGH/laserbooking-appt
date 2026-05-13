@@ -291,6 +291,25 @@
   .search-wrap input { padding-left: 28px; }
   .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 13px; pointer-events: none; }
 
+  .stat-table th {
+    background: var(--surface2); padding: 7px 10px;
+    font-weight: 500; font-size: 11px; color: var(--text2);
+    border: 0.5px solid var(--border); white-space: nowrap; text-align: center;
+  }
+  .stat-table th.col-month { text-align: left; min-width: 80px; }
+  .stat-table td {
+    padding: 7px 10px; border: 0.5px solid var(--border);
+    text-align: center; font-size: 13px; color: var(--text);
+  }
+  .stat-table td.col-month { font-weight: 500; color: var(--text2); font-size: 12px; white-space: nowrap; }
+  .stat-table td.zero { color: var(--text3); }
+  .stat-table tr:hover td { background: var(--blue-light); }
+  .stat-table .total-row td { background: var(--surface2); font-weight: 600; border-top: 1.5px solid var(--border2); }
+  .stat-count {
+    display: inline-block; min-width: 22px; padding: 2px 6px;
+    border-radius: 10px; font-size: 12px; font-weight: 500;
+  }
+
   @media (max-width: 640px) {
     header { padding: 12px 14px; }
     .container { padding: 12px; }
@@ -498,6 +517,21 @@
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      每月治療師個案統計
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label style="font-size:11px;color:var(--text2);">顯示月份</label>
+        <select id="month-stat-filter" onchange="renderTherapistStats()" style="font-size:12px;padding:4px 8px;max-width:140px;">
+          <option value="">全部月份</option>
+        </select>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="therapist-stat-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:400px;"></table>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -545,7 +579,7 @@ async function loadAll() {
     setSyncStatus('err', '連線失敗');
   }
   document.getElementById('loading-overlay').style.display = 'none';
-  renderPatients(); renderCalendar(); updateStats(); renderLegend();
+  renderPatients(); renderCalendar(); updateStats(); renderLegend(); renderTherapistStats();
 }
 
 // ── 背景靜默同步（不擋 UI，不閃爍）──────────────────────────
@@ -555,7 +589,7 @@ async function silentSync() {
     patients = data.patients || [];
     bookings = data.bookings || {};
     setSyncStatus('ok', '已同步');
-    renderPatients(); renderCalendar(); updateStats();
+    renderPatients(); renderCalendar(); updateStats(); renderTherapistStats();
     if (selectedPatientId) updateSelectedInfo();
   } catch (_) {
     setSyncStatus('err', '連線失敗');
@@ -1146,6 +1180,7 @@ function updateStats() {
   document.getElementById('stat-total').textContent    = total;
   document.getElementById('stat-booked').textContent   = booked;
   document.getElementById('stat-remain').textContent   = total - booked;
+  renderTherapistStats();
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -1157,6 +1192,90 @@ function getMonday(offset) {
 function dateStr(d)    { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function formatDate(d) { return `${d.getMonth() + 1}/${d.getDate()}`; }
 function esc(s)        { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+// ── 每月治療師個案統計 ─────────────────────────────────────
+function renderTherapistStats() {
+  // 建立 stats[month][therapist] = 次數
+  const stats = {};
+  for (const [key, bk] of Object.entries(bookings)) {
+    const month = key.slice(0, 7); // YYYY-MM
+    if (!stats[month]) stats[month] = {};
+    stats[month][bk.therapist] = (stats[month][bk.therapist] || 0) + 1;
+  }
+
+  // 更新月份下拉選單
+  const filterEl = document.getElementById('month-stat-filter');
+  const prevVal  = filterEl.value;
+  const allMonths = Object.keys(stats).sort().reverse();
+  filterEl.innerHTML = '<option value="">全部月份</option>' +
+    allMonths.map(m => {
+      const [y, mo] = m.split('-');
+      return `<option value="${m}">${y}年${parseInt(mo)}月</option>`;
+    }).join('');
+  filterEl.value = allMonths.includes(prevVal) ? prevVal : '';
+
+  const selectedMonth = filterEl.value;
+  const months = selectedMonth ? [selectedMonth] : allMonths;
+
+  // 找出有資料的治療師（依照 THERAPISTS 順序保留）
+  const activeTherapists = THERAPISTS.filter(t =>
+    months.some(m => (stats[m]?.[t] || 0) > 0)
+  );
+
+  const table = document.getElementById('therapist-stat-table');
+  if (!months.length || !activeTherapists.length) {
+    table.innerHTML = '<tr><td style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">尚無預約資料</td></tr>';
+    return;
+  }
+
+  // 表頭
+  let html = '<thead><tr class="stat-table"><th class="stat-table col-month">月份</th>' +
+    activeTherapists.map(t =>
+      `<th class="stat-table" style="border-top-color:${therapistColor[t]};border-top-width:3px;">${t}</th>`
+    ).join('') +
+    '<th class="stat-table">合計</th></tr></thead><tbody>';
+
+  // 各月資料列
+  for (const m of months) {
+    const [y, mo] = m.split('-');
+    let rowTotal = 0;
+    const cells = activeTherapists.map(t => {
+      const count = stats[m]?.[t] || 0;
+      rowTotal += count;
+      const color = therapistColor[t];
+      const chip  = count > 0
+        ? `<span class="stat-count" style="background:${color}22;color:${color}">${count}</span>`
+        : `<span class="zero">—</span>`;
+      return `<td class="stat-table${count === 0 ? ' zero' : ''}">${chip}</td>`;
+    }).join('');
+    html += `<tr>
+      <td class="stat-table col-month">${y}年${parseInt(mo)}月</td>
+      ${cells}
+      <td class="stat-table" style="font-weight:600;">${rowTotal}</td>
+    </tr>`;
+  }
+
+  // 合計列（全部月份時才顯示）
+  if (!selectedMonth && months.length > 1) {
+    const totals = activeTherapists.map(t =>
+      months.reduce((sum, m) => sum + (stats[m]?.[t] || 0), 0)
+    );
+    const grandTotal = totals.reduce((a, b) => a + b, 0);
+    html += '<tr class="total-row"><td class="stat-table col-month">總計</td>' +
+      totals.map((n, i) => {
+        const color = therapistColor[activeTherapists[i]];
+        const chip  = n > 0
+          ? `<span class="stat-count" style="background:${color}22;color:${color}">${n}</span>`
+          : `<span class="zero">—</span>`;
+        return `<td class="stat-table">${chip}</td>`;
+      }).join('') +
+      `<td class="stat-table">${grandTotal}</td></tr>`;
+  }
+
+  html += '</tbody>';
+  table.className = 'stat-table';
+  table.innerHTML = html;
+}
 
 // ── 點擊彈窗背景關閉 ───────────────────────────────────────
 document.getElementById('edit-modal').addEventListener('click', function(e) {
