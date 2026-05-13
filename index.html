@@ -179,6 +179,7 @@
   .cal-cell {
     background: var(--surface); padding: 3px;
     min-height: 38px; cursor: pointer; transition: background 0.1s;
+    display: flex; flex-direction: column; gap: 2px;
   }
   .cal-cell:hover         { background: var(--blue-light); }
   .cal-cell.booked        { background: var(--blue-light); cursor: default; }
@@ -367,7 +368,7 @@
   <div class="logo">+</div>
   <div>
     <h1>療程預約管理系統</h1>
-    <p>週一至週五 ｜ 08:00–11:00 &amp; 13:30–16:00 ｜ 每時段限一位病患</p>
+    <p>週一至週五 ｜ 08:00–11:00 &amp; 13:30–16:30 ｜ 每時段限兩位病患</p>
   </div>
   <div class="sync-status">
     <div class="sync-dot" id="sync-dot"></div>
@@ -833,27 +834,41 @@ function jumpToWeek(dStr) {
   setView('week');
 }
 
+function buildChip(key, bk) {
+  const pat         = patients.find(x => x.id === bk.patientId);
+  const pname       = pat ? pat.name : bk.patientId;
+  const isMine      = bk.patientId === selectedPatientId;
+  const matchFilter = !therapistFilter || bk.therapist === therapistFilter;
+  const color       = therapistColor[bk.therapist] || '#185FA5';
+  const chipCls     = 'booking-chip' + (matchFilter ? '' : ' dimmed');
+  const outline     = isMine ? `box-shadow:0 0 0 2px #fff,0 0 0 3.5px ${color};` : '';
+  return `<div class="${chipCls}" style="background:${color};${outline}">
+    <div class="chip-top"><span>${pname}</span><button class="chip-x" onclick="event.stopPropagation();removeBooking('${esc(key)}')">✕</button></div>
+    <div class="chip-therapist">${bk.therapist}</div>
+  </div>`;
+}
+
 function buildCell(dStr, slot, canAdd, selPat) {
-  const key = `${dStr}|${slot}`;
-  const bk  = bookings[key];
-  if (bk) {
-    const pat     = patients.find(x => x.id === bk.patientId);
-    const pname   = pat ? pat.name : bk.patientId;
-    const isMine      = bk.patientId === selectedPatientId;
-    const matchFilter = !therapistFilter || bk.therapist === therapistFilter;
-    const color       = therapistColor[bk.therapist] || '#185FA5';
-    const cellCls     = (isMine ? 'cal-cell mine' : 'cal-cell booked') + (bk._pending ? ' pending' : '');
-    const chipCls     = 'booking-chip' + (matchFilter ? '' : ' dimmed');
-    const outline     = isMine ? 'box-shadow:0 0 0 2px #fff,0 0 0 3.5px ' + color + ';' : '';
-    return `<div class="${cellCls}" title="${pat ? pat.name : bk.patientId} ／ ${bk.therapist}（${slot}）">
-      <div class="${chipCls}" style="background:${color};${outline}">
-        <div class="chip-top"><span>${pname}</span><button class="chip-x" onclick="removeBooking('${esc(key)}')">✕</button></div>
-        <div class="chip-therapist">${bk.therapist}</div>
-      </div>
-    </div>`;
+  const key1 = `${dStr}|${slot}`;
+  const key2 = `${dStr}|${slot}#2`;
+  const bk1  = bookings[key1];
+  const bk2  = bookings[key2];
+  const count = (bk1 ? 1 : 0) + (bk2 ? 1 : 0);
+
+  if (count > 0) {
+    const hasMine = bk1?.patientId === selectedPatientId || bk2?.patientId === selectedPatientId;
+    const pending = bk1?._pending || bk2?._pending;
+    const isFull  = count >= 2;
+    let cellCls   = 'cal-cell' + (hasMine ? ' mine' : ' booked') + (pending ? ' pending' : '');
+    const inner   = (bk1 ? buildChip(key1, bk1) : '') + (bk2 ? buildChip(key2, bk2) : '');
+    if (!isFull && canAdd) {
+      return `<div class="${cellCls}" onclick="book('${esc(dStr)}','${esc(slot)}')" title="點擊加入第二位預約">${inner}</div>`;
+    }
+    return `<div class="${cellCls} ${isFull ? 'disabled' : ''}" style="${isFull ? 'cursor:default' : ''}">${inner}</div>`;
   }
+
   if (canAdd) {
-    return `<div class="cal-cell" onclick="book('${esc(key)}')" title="預約 ${selPat.name}（${slot}）"></div>`;
+    return `<div class="cal-cell" onclick="book('${esc(dStr)}','${esc(slot)}')" title="預約 ${selPat.name}（${slot}）"></div>`;
   }
   const hint = !selectedPatientId ? '請先選取病患' : '療程次數已用完';
   return `<div class="cal-cell disabled" title="${hint}"></div>`;
@@ -866,11 +881,19 @@ function canBookMore(pid) {
 }
 
 // ── 預約（樂觀更新）────────────────────────────────────────
-async function book(key) {
+async function book(dStr, slot) {
   if (!selectedPatientId || !canBookMore(selectedPatientId)) return;
-  const pat = patients.find(x => x.id === selectedPatientId);
+  const pat  = patients.find(x => x.id === selectedPatientId);
+  const key1 = `${dStr}|${slot}`;
+  const key2 = `${dStr}|${slot}#2`;
 
-  // 立即寫入本地 bookings（標記 _pending 顯示半透明）
+  // 同一病患同一時段不重複預約
+  if (bookings[key1]?.patientId === selectedPatientId || bookings[key2]?.patientId === selectedPatientId) return;
+
+  // 選第一個空位
+  const key = !bookings[key1] ? key1 : !bookings[key2] ? key2 : null;
+  if (!key) return;
+
   const therapist = getTherapistForBooking(pat);
   bookings[key] = { patientId: selectedPatientId, therapist, _pending: true };
   renderCalendar(); updateSelectedInfo(); updateStats();
@@ -879,12 +902,10 @@ async function book(key) {
   const res = await apiPost({ action: 'addBooking', key, patientId: selectedPatientId, therapist });
 
   if (res.error) {
-    // 回滾
     delete bookings[key];
     renderCalendar(); updateSelectedInfo(); updateStats();
     setSyncStatus('err', '預約失敗：' + res.error);
   } else {
-    // 移除 pending 標記
     bookings[key]._pending = false;
     renderCalendar();
     setSyncStatus('ok', '已同步');
